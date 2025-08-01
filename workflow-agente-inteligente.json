@@ -1,0 +1,269 @@
+{
+  "name": "🤖 Agente OpenWebUI ↔ NocoDB",
+  "tags": ["agente", "openwebui", "nocodb", "automatizacion"],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "path": "openwebui-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "📡 Webhook OpenWebUI",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [200, 300],
+      "webhookId": "openwebui-chat-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🤖 PROCESADOR INTELIGENTE DE MENSAJES\nconst userMessage = $input.first().json.user_message || $input.first().json.message || '';\nconst sessionId = $input.first().json.session_id || 'session_' + Date.now();\nconst userId = $input.first().json.user_id || 'user_unknown';\n\n// 📝 PALABRAS CLAVE PARA DETECTAR ACCIÓN\nconst writeKeywords = ['agregar', 'añadir', 'crear', 'registrar', 'guardar', 'anotar', 'ingresar', 'nueva', 'nuevo'];\nconst readKeywords = ['mostrar', 'ver', 'listar', 'buscar', 'consultar', '¿qué', '¿cuánto', '¿cuál', 'estado', 'inventario'];\n\nconst lowerMessage = userMessage.toLowerCase();\n\n// 🎯 DETECTAR INTENCIÓN\nconst isWrite = writeKeywords.some(keyword => lowerMessage.includes(keyword));\nconst isRead = readKeywords.some(keyword => lowerMessage.includes(keyword)) || lowerMessage.includes('?');\n\n// ✅ DECISIÓN FINAL\nlet action = 'read'; // Por defecto leer\nif (isWrite && !isRead) {\n  action = 'write';\n} else if (isWrite && isRead) {\n  // Si tiene ambos, priorizamos según estructura\n  action = lowerMessage.match(/^(agregar|añadir|crear|registrar|guardar)/) ? 'write' : 'read';\n}\n\nreturn {\n  json: {\n    action: action,\n    user_message: userMessage,\n    session_id: sessionId,\n    user_id: userId,\n    original_payload: $input.first().json,\n    decision_reason: `Detecté ${writeKeywords.filter(k => lowerMessage.includes(k)).length} palabras de escritura y ${readKeywords.filter(k => lowerMessage.includes(k)).length} de lectura`\n  }\n};"
+      },
+      "name": "🧠 Analizador de Intención",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.action }}",
+              "operation": "equal",
+              "value2": "write"
+            }
+          ]
+        }
+      },
+      "name": "🤔 ¿Escribir o Leer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📝 EXTRACTOR INTELIGENTE DE DATOS\nconst userMessage = $input.first().json.user_message.toLowerCase();\nconst sessionId = $input.first().json.session_id;\nconst userId = $input.first().json.user_id;\n\n// 🎯 DATOS BASE\nlet extractedData = {\n  Usuario_Registro: \"🤖 Agente ChatBot\",\n  Responsable: \"Sistema Automatizado\",\n  Estado: \"Registrado por IA\",\n  Notas: `📱 Creado desde chat: \"${$input.first().json.user_message}\"`\n};\n\n// 🌿 EXTRAER VARIEDAD\nconst variedadPatterns = [\n  /variedad\\s+([\\w\\s]+?)(?=,|\\s+\\d|\\s+categor|\\s+responsable|$)/i,\n  /([\\w\\s]+?)\\s+variedad/i,\n  /strain\\s+([\\w\\s]+?)(?=,|\\s+\\d|$)/i\n];\n\nfor (let pattern of variedadPatterns) {\n  const match = userMessage.match(pattern);\n  if (match) {\n    extractedData.Variedad = match[1].trim();\n    break;\n  }\n}\n\n// ⚖️ EXTRAER PESO\nconst pesoPatterns = [\n  /(\\d+(?:\\.\\d+)?)\\s*g(?:ramos?)?/i,\n  /(\\d+(?:\\.\\d+)?)\\s*kg/i // Convertir kg a g\n];\n\nfor (let pattern of pesoPatterns) {\n  const match = userMessage.match(pattern);\n  if (match) {\n    let peso = parseFloat(match[1]);\n    if (pattern.source.includes('kg')) {\n      peso = peso * 1000; // Convertir kg a gramos\n    }\n    extractedData.Peso_Neto_g = peso.toString();\n    break;\n  }\n}\n\n// 👤 EXTRAER RESPONSABLE\nconst responsablePatterns = [\n  /responsable\\s+([\\w\\s]+?)(?=,|$)/i,\n  /a\\s+cargo\\s+de\\s+([\\w\\s]+?)(?=,|$)/i,\n  /encargado\\s+([\\w\\s]+?)(?=,|$)/i\n];\n\nfor (let pattern of responsablePatterns) {\n  const match = userMessage.match(pattern);\n  if (match) {\n    extractedData.Responsable = match[1].trim();\n    break;\n  }\n}\n\n// 📋 EXTRAER CATEGORÍA\nconst categoriaPatterns = [\n  /categor[íi]a\\s+([AB])(?:\\s+[^,]*)?/i,\n  /clase\\s+([AB])/i,\n  /tipo\\s+([AB])/i\n];\n\nfor (let pattern of categoriaPatterns) {\n  const match = userMessage.match(pattern);\n  if (match) {\n    if (match[1].toUpperCase() === 'A') {\n      extractedData.Categoria_Producto = \"A Mayor a 2.5 cm\";\n    } else {\n      extractedData.Categoria_Producto = \"B Igual o menos a 2.5 cm\";\n    }\n    break;\n  }\n}\n\n// 🏢 EXTRAER UBICACIÓN\nconst ubicacionPatterns = [\n  /ubicaci[óo]n\\s+([\\w\\s]+?)(?=,|$)/i,\n  /almac[ée]n\\s+([\\w\\s]+?)(?=,|$)/i,\n  /sala\\s+([\\w\\s]+?)(?=,|$)/i\n];\n\nfor (let pattern of ubicacionPatterns) {\n  const match = userMessage.match(pattern);\n  if (match) {\n    extractedData.Ubicacion_Almacenamiento = match[1].trim();\n    break;\n  }\n}\n\n// 🔢 GENERAR CÓDIGO DE TRAZABILIDAD ÚNICO\nconst today = new Date();\nconst year = today.getFullYear().toString().slice(-2);\nconst month = String(today.getMonth() + 1).padStart(2, '0');\nconst day = String(today.getDate()).padStart(2, '0');\nconst hour = String(today.getHours()).padStart(2, '0');\nconst minute = String(today.getMinutes()).padStart(2, '0');\nconst randomId = Math.floor(Math.random() * 1000).toString().padStart(3, '0');\n\nconst variedadCode = extractedData.Variedad ? extractedData.Variedad.slice(0,3).toUpperCase() : 'AGT';\nextractedData.Codigo_Trazabilidad_Almacenamiento = `${year}.${month}${day}.${hour}${minute}-${variedadCode}-${randomId}`;\n\n// 📅 FECHAS AUTOMÁTICAS\nextractedData.Fecha_Almacenamiento = today.toISOString().split('T')[0];\nextractedData.Fecha_Ultima_Revision = today.toISOString().split('T')[0];\n\n// 🏪 VALORES POR DEFECTO INTELIGENTES\nif (!extractedData.Tipo_Contenedor) {\n  extractedData.Tipo_Contenedor = \"Terp Block\";\n}\nif (!extractedData.Ubicacion_Almacenamiento) {\n  extractedData.Ubicacion_Almacenamiento = \"Sala Almacenamiento\";\n}\nif (!extractedData.Condiciones_Almacenamiento_Ideal) {\n  extractedData.Condiciones_Almacenamiento_Ideal = \"Pendiente Revisión\";\n}\nif (!extractedData.Cuarentena) {\n  extractedData.Cuarentena = \"En Proceso\";\n}\nif (!extractedData.Camada) {\n  extractedData.Camada = \"C1\";\n}\nif (!extractedData.Lote_Almacenado) {\n  extractedData.Lote_Almacenado = \"L1\";\n}\n\n// ✅ RESULTADO FINAL\nreturn {\n  json: {\n    ...extractedData,\n    original_message: $input.first().json.user_message,\n    session_id: sessionId,\n    user_id: userId,\n    extracted_fields: Object.keys(extractedData).filter(key => extractedData[key] && !['Usuario_Registro', 'Estado'].includes(key))\n  }\n};"
+      },
+      "name": "🔍 Extractor de Datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3091/api/v2/tables/mr9we3ldl7rcn3a/records",
+        "authentication": "headerAuth",
+        "headerAuth": {
+          "name": "xc-token",
+          "value": "REEMPLAZAR_CON_TU_TOKEN_NOCODB"
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "response": {
+            "fullResponse": false,
+            "responseFormat": "json"
+          }
+        }
+      },
+      "name": "💾 Escribir en NocoDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://localhost:3091/api/v2/tables/mr9we3ldl7rcn3a/records?limit=10&sort=-CreatedAt",
+        "authentication": "headerAuth",
+        "headerAuth": {
+          "name": "xc-token",
+          "value": "REEMPLAZAR_CON_TU_TOKEN_NOCODB"
+        },
+        "options": {
+          "response": {
+            "fullResponse": false,
+            "responseFormat": "json"
+          }
+        }
+      },
+      "name": "📖 Leer de NocoDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [800, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 📊 FORMATEADOR DE RESPUESTA DE LECTURA\nconst response = $input.first().json;\nconst records = response.list || response.records || response;\n\nlet formattedResponse = \"📋 **Inventario Actual - Almacenamiento**\\n\\n\";\n\nif (!Array.isArray(records) || records.length === 0) {\n  formattedResponse = \"📭 **No hay registros en el inventario actual**\\n\\n\";\n  formattedResponse += \"💡 *Puedes agregar productos diciendo: \\\"Agregar variedad Blue Dream, 35g, responsable Juan\\\"*\";\n} else {\n  records.slice(0, 10).forEach((record, index) => {\n    const data = record;\n    const num = index + 1;\n    \n    formattedResponse += `🌿 **${num}. ${data.Variedad || 'Sin variedad'}**\\n`;\n    \n    if (data.Categoria_Producto) {\n      formattedResponse += `   📏 Categoría: ${data.Categoria_Producto}\\n`;\n    }\n    if (data.Peso_Neto_g) {\n      formattedResponse += `   ⚖️ Peso: ${data.Peso_Neto_g}g\\n`;\n    }\n    if (data.Responsable) {\n      formattedResponse += `   👤 Responsable: ${data.Responsable}\\n`;\n    }\n    if (data.Estado) {\n      const emoji = data.Estado.includes('Aprobado') ? '✅' : '⏳';\n      formattedResponse += `   ${emoji} Estado: ${data.Estado}\\n`;\n    }\n    if (data.Lote_Almacenado) {\n      formattedResponse += `   📦 Lote: ${data.Lote_Almacenado}\\n`;\n    }\n    if (data.Fecha_Almacenamiento) {\n      formattedResponse += `   📅 Fecha: ${data.Fecha_Almacenamiento}\\n`;\n    }\n    if (data.Codigo_Trazabilidad_Almacenamiento) {\n      formattedResponse += `   🔢 Código: \\`${data.Codigo_Trazabilidad_Almacenamiento}\\`\\n`;\n    }\n    if (data.Ubicacion_Almacenamiento) {\n      formattedResponse += `   🏢 Ubicación: ${data.Ubicacion_Almacenamiento}\\n`;\n    }\n    \n    formattedResponse += \"\\n\";\n  });\n  \n  formattedResponse += `\\n📊 **Resumen:**\\n`;\n  formattedResponse += `• Total registros mostrados: ${Math.min(records.length, 10)}\\n`;\n  \n  if (records.length > 10) {\n    formattedResponse += `• Hay ${records.length - 10} registros adicionales\\n`;\n  }\n  \n  // 🧮 ESTADÍSTICAS RÁPIDAS\n  const totalPeso = records.reduce((sum, r) => sum + (parseFloat(r.Peso_Neto_g) || 0), 0);\n  const variedades = [...new Set(records.map(r => r.Variedad).filter(v => v))];\n  const estados = [...new Set(records.map(r => r.Estado).filter(e => e))];\n  \n  formattedResponse += `• Peso total: ${totalPeso.toFixed(1)}g\\n`;\n  formattedResponse += `• Variedades: ${variedades.length} diferentes\\n`;\n  formattedResponse += `• Estados: ${estados.join(', ')}\\n`;\n}\n\nformattedResponse += \"\\n💬 *¿Necesitas agregar algo nuevo o hacer otra consulta?*\";\n\nreturn {\n  json: {\n    response: formattedResponse,\n    action: \"read\",\n    total_records: Array.isArray(records) ? records.length : 0,\n    summary: {\n      total_weight: Array.isArray(records) ? records.reduce((s, r) => s + (parseFloat(r.Peso_Neto_g) || 0), 0) : 0,\n      varieties: Array.isArray(records) ? [...new Set(records.map(r => r.Variedad).filter(v => v))].length : 0\n    }\n  }\n};"
+      },
+      "name": "📊 Formatear Respuesta Lectura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ✅ FORMATEADOR DE RESPUESTA DE ESCRITURA\nconst createdRecord = $input.first().json;\nconst originalData = $('Extractor de Datos').first().json;\n\n// 🎉 RESPUESTA DE ÉXITO\nlet response = `🎉 **¡Registro creado exitosamente!**\\n\\n`;\n\n// 📝 DETALLES DEL REGISTRO\nresponse += `📋 **Detalles del nuevo registro:**\\n`;\n\nif (originalData.Variedad) {\n  response += `🌿 **Variedad:** ${originalData.Variedad}\\n`;\n}\nif (originalData.Peso_Neto_g) {\n  response += `⚖️ **Peso:** ${originalData.Peso_Neto_g}g\\n`;\n}\nif (originalData.Responsable) {\n  response += `👤 **Responsable:** ${originalData.Responsable}\\n`;\n}\nif (originalData.Categoria_Producto) {\n  response += `📏 **Categoría:** ${originalData.Categoria_Producto}\\n`;\n}\nif (originalData.Ubicacion_Almacenamiento) {\n  response += `🏢 **Ubicación:** ${originalData.Ubicacion_Almacenamiento}\\n`;\n}\nif (originalData.Codigo_Trazabilidad_Almacenamiento) {\n  response += `🔢 **Código:** \\`${originalData.Codigo_Trazabilidad_Almacenamiento}\\`\\n`;\n}\n\nresponse += `📅 **Fecha:** ${originalData.Fecha_Almacenamiento || 'Hoy'}\\n`;\nresponse += `📊 **Estado:** ${originalData.Estado}\\n`;\n\n// 🆔 ID DEL REGISTRO\nif (createdRecord.Id || createdRecord.id) {\n  response += `🆔 **ID del registro:** #${createdRecord.Id || createdRecord.id}\\n`;\n}\n\nresponse += `\\n`;\n\n// 🔍 CAMPOS DETECTADOS AUTOMÁTICAMENTE\nif (originalData.extracted_fields && originalData.extracted_fields.length > 0) {\n  response += `🤖 **Campos detectados automáticamente:**\\n`;\n  originalData.extracted_fields.forEach(field => {\n    const emoji = {\n      'Variedad': '🌿',\n      'Peso_Neto_g': '⚖️',\n      'Responsable': '👤',\n      'Categoria_Producto': '📏',\n      'Ubicacion_Almacenamiento': '🏢'\n    }[field] || '📝';\n    response += `   ${emoji} ${field.replace(/_/g, ' ')}\\n`;\n  });\n  response += `\\n`;\n}\n\n// 💡 SUGERENCIAS\nresponse += `💡 **Próximos pasos:**\\n`;\nresponse += `• Para ver el inventario: \\\"¿Qué hay en almacenamiento?\\\"\\n`;\nresponse += `• Para agregar más: \\\"Agregar variedad [nombre], [peso]g, responsable [persona]\\\"\\n`;\nresponse += `• Para buscar específico: \\\"Mostrar registros de [variedad/responsable]\\\"\\n`;\n\nreturn {\n  json: {\n    response: response,\n    action: \"write\",\n    created_id: createdRecord.Id || createdRecord.id,\n    success: true,\n    extracted_fields: originalData.extracted_fields || []\n  }\n};"
+      },
+      "name": "✅ Formatear Respuesta Escritura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "name": "🚀 Responder a OpenWebUI",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 🚨 MANEJADOR DE ERRORES\nconst error = $input.first().json.error || 'Error desconocido';\nconst originalMessage = $('Analizador de Intención').first()?.json?.user_message || 'Mensaje no disponible';\n\nlet errorResponse = `⚠️ **Oops! Hubo un problema**\\n\\n`;\n\nif (error.includes('401') || error.includes('unauthorized')) {\n  errorResponse += `🔐 **Error de autenticación con NocoDB**\\n`;\n  errorResponse += `• Verifica que el token de NocoDB esté configurado correctamente\\n`;\n  errorResponse += `• Contacta al administrador del sistema\\n`;\n} else if (error.includes('404')) {\n  errorResponse += `🔍 **No se encontró el recurso**\\n`;\n  errorResponse += `• La tabla de NocoDB podría no existir\\n`;\n  errorResponse += `• Verifica la configuración del workflow\\n`;\n} else if (error.includes('network') || error.includes('ECONNREFUSED')) {\n  errorResponse += `🌐 **Error de conexión**\\n`;\n  errorResponse += `• NocoDB podría no estar ejecutándose\\n`;\n  errorResponse += `• Verifica que el servicio esté activo en puerto 3091\\n`;\n} else {\n  errorResponse += `📋 **Error general:**\\n\\`\\`\\`\\n${error}\\n\\`\\`\\`\\n`;\n}\n\nerrorResponse += `\\n📝 **Tu mensaje:** \\\"${originalMessage}\\\"\\n`;\nerrorResponse += `\\n🔄 **Intenta nuevamente en unos momentos**\\n`;\nerrorResponse += `💬 *O pregúntame sobre el estado del sistema*`;\n\nreturn {\n  json: {\n    response: errorResponse,\n    action: \"error\",\n    error_type: error,\n    success: false\n  }\n};"
+      },
+      "name": "🚨 Manejador de Errores",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 600]
+    }
+  ],
+  "connections": {
+    "📡 Webhook OpenWebUI": {
+      "main": [
+        [
+          {
+            "node": "🧠 Analizador de Intención",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧠 Analizador de Intención": {
+      "main": [
+        [
+          {
+            "node": "🤔 ¿Escribir o Leer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤔 ¿Escribir o Leer?": {
+      "main": [
+        [
+          {
+            "node": "🔍 Extractor de Datos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "📖 Leer de NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Extractor de Datos": {
+      "main": [
+        [
+          {
+            "node": "💾 Escribir en NocoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "💾 Escribir en NocoDB": {
+      "main": [
+        [
+          {
+            "node": "✅ Formatear Respuesta Escritura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "🚨 Manejador de Errores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📖 Leer de NocoDB": {
+      "main": [
+        [
+          {
+            "node": "📊 Formatear Respuesta Lectura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "🚨 Manejador de Errores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Formatear Respuesta Lectura": {
+      "main": [
+        [
+          {
+            "node": "🚀 Responder a OpenWebUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Formatear Respuesta Escritura": {
+      "main": [
+        [
+          {
+            "node": "🚀 Responder a OpenWebUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚨 Manejador de Errores": {
+      "main": [
+        [
+          {
+            "node": "🚀 Responder a OpenWebUI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "staticData": null,
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
